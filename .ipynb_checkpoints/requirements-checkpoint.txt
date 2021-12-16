@@ -3,3 +3,4 @@ matplotlib
 pandas
 markdown
 opencv-python
+Pillow
