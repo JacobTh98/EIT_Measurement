@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import cv2 as cv
+import matplotlib.pyplot as plt
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
@@ -53,11 +55,24 @@ def gen_ground_truth_pic(body,r,α):
     """
     Input: body ... 'rectangle','square', 'triangle'
            r    ... Radius vom Mittelpunkt
-           α    ... Winkel von positiver x-Achse (gegen Uhrzeigersinn)
+           α    ... Winkel von positiver x-Achse (im Uhrzeigersinn)
     Return:
            Bild des Gegenstandes, positioniert im Einheitskreis.
     """
-    ###
-    return r+α
+    IMG=np.zeros((1000,1000))
+    x_0 = y_0 =500 #Verschiebung Nullpunkt Koordinatensystem
+    x = round(r*np.cos(α))
+    y = round(r*np.sin(α))
+    print('x:',x)
+    print('y:',y)
+    
+    #              x,y      r     color.   strichdicke 
+    cv.circle(IMG,(500,500),500,(255,255,0),1) #Rand
+    if body == 'circle':
+        cv.circle(IMG,(x_0+x,y_0+y),100,(255,0,0),-1)
+    if body == 'rectangle':
+        abw=100
+        cv.rectangle(IMG,(x_0-abw+x,y_0-abw+y),(x_0+abw+x,y_0+abw+y),(255,0,0),-1)
+    return IMG
 
 ###--------------------------------------------------------
