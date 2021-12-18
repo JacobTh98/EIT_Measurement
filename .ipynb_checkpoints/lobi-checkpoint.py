@@ -73,11 +73,14 @@ def export_xlsx(A,name ='undefined',transpose=True):
     
     print('Exported as:',name+str('.xlsx'))
 ###--------------------------------------------------------
-def gen_ground_truth_pic(objct , r , α , clockdirection=False, save_img = False):
+def ground_truth(objct , r , α , dr ,clockdirection=False, save_img = True):
     """
     Input: objct ...'rectangle','circle','triangle'
            r    ... Radius 0...2π [Rad] vom Mittelpunkt
            α    ... Winkel [°] von positiver x-Achse (default: gegen den Uhrzeigersinn)
+           dr   ... Verzeichnis der Messng
+           clockdirection ... im oder gegen Uhrzeigersinn drehen
+           
            
            -> Für mehr Objekte Arrays für objct,r,α übergeben
     Return:
@@ -127,7 +130,8 @@ def gen_ground_truth_pic(objct , r , α , clockdirection=False, save_img = False
     if save_img:
         im = Image.fromarray(IMG)
         im = im.convert("L")
-        im.save(str(objct)+str(r_old)+str(α_old)+".jpeg")
+        im.save(dr+"/"+str(objct)+str(r_old)+str(α_old)+".jpeg")
+        np.save(dr+"/"+"numpy",IMG)
         print('Bild gespeichert')
     return IMG
 ###--------------------------------------------------------

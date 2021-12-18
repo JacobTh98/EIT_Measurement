@@ -1,5 +1,5 @@
 EIT-Messung
  
-Datum: 	2021-12-18 14:24
+Datum: 	2021-12-18 14:40
 Messmodus: 	e
 Elektrodenanzahl: 	16
