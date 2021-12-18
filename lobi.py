@@ -3,9 +3,31 @@ import pandas as pd
 import cv2 as cv
 import matplotlib.pyplot as plt
 from PIL import Image
+import os
+from datetime import datetime
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
+###--------------------------------------------------------
+def gen_env(mes,el,mod):
+    """
+    Initialisierung des Ordners mit Informationen zur Messung
+    Input:  - Elektrodenanzahl [16/32]
+            - Messmodus: ['a','b','c','d','e']
+    """
+    print('Ordner mit dem Namen:"',mes,'" wurde erstellt.')
+    os.makedirs(mes)
+    dr = mes+'/info.txt'
+    f = open(dr,"w")
+    #Schreiben der Grunddaten
+    f.write("EIT-Messung\n \n")
+    d = "Datum: \t"+str(datetime.today().strftime('%Y-%m-%d %H:%M'))+"\n"
+    m = "Messmodus: \t" + str(mod) + "\n"
+    e = "Elektrodenanzahl: \t" +str(el)+"\n"
+    f.write(d)
+    f.write(m)
+    f.write(e)
+    f.close()
 ###--------------------------------------------------------
 def mean_data(A):
     """
