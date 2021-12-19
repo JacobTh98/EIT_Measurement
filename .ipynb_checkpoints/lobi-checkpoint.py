@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import os
 from datetime import datetime
+import serial
+from tqdm import tqdm
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
@@ -28,16 +30,28 @@ def gen_env(mes,el,mod):
     f.write(m)
     f.write(e)
     f.close()
+
 ###--------------------------------------------------------
-def mean_data(A):
+def parse_line(line):
     """
-    Return: Vektor mit Mittelwerten der Zeilen, ohne die erste Spaltes
+    Aus pyEIT
     """
-    M = np.mean(A,0)
-    M = M[1:] #Erste Spalte entfernen
-    return M
+    try:
+        _, data = line.split(":", 1)
+    except ValueError:
+        return None
+    items = []
+    for item in data.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            items.append(float(item))
+        except ValueError:
+            return None
+    return np.array(items)
 ###--------------------------------------------------------
-def record_data(N, M = 192, mode = 'e'):
+def reconstruct_data(N, M = 192, mode = 'e'):
     """
     Aufnahme von N Messwerten in einem definiterten Modus
     Input:  N    ... Anzahl der Messungen
@@ -58,6 +72,14 @@ def record_data(N, M = 192, mode = 'e'):
     #Data handling
     return MxN
 
+###--------------------------------------------------------
+def mean_data(A):
+    """
+    Return: Vektor mit Mittelwerten der Zeilen, ohne die erste Spaltes
+    """
+    M = np.mean(A,0)
+    M = M[1:] #Erste Spalte entfernen
+    return M
 ###--------------------------------------------------------
 def export_xlsx(A,name ='undefined',transpose=True):
     """
