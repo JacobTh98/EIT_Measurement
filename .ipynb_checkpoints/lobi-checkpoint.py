@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 import serial
 from tqdm import tqdm
+
+
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
@@ -32,9 +34,17 @@ def gen_env(mes,el,mod):
     f.close()
 
 ###--------------------------------------------------------
+def init(port="COM7"):
+    """
+    default port = COM7
+    """
+    serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
+    print("Verbindung zu:" , port, "erfolgreich hergestellt.")
+    return serialPort
+###--------------------------------------------------------
 def parse_line(line):
     """
-    Aus pyEIT
+    Aus pyEIT zu verarbeitung der bitdaten
     """
     try:
         _, data = line.split(":", 1)
@@ -51,7 +61,7 @@ def parse_line(line):
             return None
     return np.array(items)
 ###--------------------------------------------------------
-def reconstruct_data(N, M = 192, mode = 'e'):
+def measure_data(N,serialPort, M = 192, mode = 'e'):
     """
     Aufnahme von N Messwerten in einem definiterten Modus
     Input:  N    ... Anzahl der Messungen
@@ -68,7 +78,15 @@ def reconstruct_data(N, M = 192, mode = 'e'):
     MxN = np.zeros((N,M))
     MxN = np.c_[n,MxN]
     #Recording part...
-      #...
+    #...
+    cnt = 0
+    while cnt < N:
+        print("Vorgang: ",cnt+1,"von: ",N)
+        line = serialPort.readline().decode("utf-8")
+        line = parse_line(line)
+        if len(line) == M:
+            MxN[cnt,1:]=line
+            cnt = cnt+1
     #Data handling
     return MxN
 
