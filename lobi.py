@@ -83,8 +83,13 @@ def measure_data(N,serialPort, M = 192, mode = 'e'):
     while cnt < N:
         print("Vorgang: ",cnt+1,"von: ",N)
         line = serialPort.readline().decode("utf-8")
-        line = parse_line(line)
-        if len(line) == M:
+        try: #Probably a little bit buggy
+            line = parse_line(line)
+            l = len(line)
+        except ValueError:
+            l = 0
+            print("Läenge unzureichend starte neu")
+        if l == M:
             MxN[cnt,1:]=line
             cnt = cnt+1
     #Data handling
