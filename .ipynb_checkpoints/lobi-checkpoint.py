@@ -13,7 +13,7 @@ from tqdm import tqdm
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
 ###--------------------------------------------------------
-def gen_env(mes,el,mod):
+def gen_env(mes,el,mod,Schnkstp):
     """
     Initialisierung des Ordners mit Informationen zur Messung
     Input:  - Elektrodenanzahl [16/32]
@@ -28,9 +28,11 @@ def gen_env(mes,el,mod):
     d = "Datum: \t"+str(datetime.today().strftime('%Y-%m-%d %H:%M'))+"\n"
     m = "Messmodus: \t" + str(mod) + "\n"
     e = "Elektrodenanzahl: \t" +str(el)+"\n"
+    s = "Schunk Step Intevall \t" + str(Schnkstp)+"[°/step]"+"\n"
     f.write(d)
     f.write(m)
     f.write(e)
+    f.write(s)
     f.close()
 
 ###--------------------------------------------------------
@@ -76,9 +78,7 @@ def measure_data(N,serialPort, M = 192, mode = 'e'):
     """
     n = np.arange(N) #Messnummerieung (0 ... N-1)
     MxN = np.zeros((N,M))
-    MxN = np.c_[n,MxN]
-    #Recording part...
-    #...
+    #MxN = np.c_[n,MxN]
     cnt = 0
     while cnt < N:
         print("Vorgang: ",cnt+1,"von: ",N)
@@ -90,35 +90,34 @@ def measure_data(N,serialPort, M = 192, mode = 'e'):
             l = 0
             print("Läenge unzureichend starte neu")
         if l == M:
-            MxN[cnt,1:]=line
+            MxN[cnt,:]=line
             cnt = cnt+1
     #Data handling
     return MxN
-
 ###--------------------------------------------------------
-def mean_data(A):
-    """
-    Return: Vektor mit Mittelwerten der Zeilen, ohne die erste Spaltes
-    """
-    M = np.mean(A,0)
-    M = M[1:] #Erste Spalte entfernen
-    return M
-###--------------------------------------------------------
-def export_xlsx(A,name ='undefined',transpose=True):
+def export_xlsx(A, path, mean, name ='undefined'):
     """
     Exportieren der messdaten als Excel-Tebelle
     !Achtung: Bei der Weiterverarbeitung!
-    """
-    if transpose is True: # Invertieren der Messdaten
-        df = pd.DataFrame(A).T
-        df.to_excel(excel_writer = "test.xlsx")
-    if transpose is False:
-        df = pd.DataFrame(A)
-        df.to_excel(excel_writer = "test.xlsx")
+    Außerdem wird ein mittelwertbild abgezogen
+    - raw ... Rohdaten ohne Abzug des Mittelwertes
+    - m_m ... Rohdaten inklusive Abzug des Mittelwertes
+    """  
+    ##Rohdaten
+    df = pd.DataFrame(A)
+    df.to_excel(excel_writer = str(path)+'/'+str(name)+'raw'+'.xlsx')
+    np.save(str(path)+'/'+str(name)+'raw', A)
+    ##Abzug des mittelwertes
+    A = A - mean
+    A[A<0]=0
+    df = pd.DataFrame(A)
+    df.to_excel(excel_writer = str(path)+'/'+str(name)+'m_m'+'.xlsx')
+    np.save(str(path)+'/'+str(name)+'m_m', A)
     
-    print('Exported as:',name+str('.xlsx'))
+    
+    print('Messung',str(name),'erfolgreich exportiert')
 ###--------------------------------------------------------
-def ground_truth(objct , r , α , dr ,clockdirection=False, save_img = True):
+def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
     """
     Input: objct ...'rectangle','circle','triangle'
            r    ... Radius 0...2π [Rad] vom Mittelpunkt
@@ -175,8 +174,9 @@ def ground_truth(objct , r , α , dr ,clockdirection=False, save_img = True):
     if save_img:
         im = Image.fromarray(IMG)
         im = im.convert("L")
-        im.save(dr+"/"+str(objct)+str(r_old)+str(α_old)+".jpeg")
-        np.save(dr+"/"+"numpy",IMG)
+        #im.save(path+"/"+str(objct)+str(r_old)+str(α_old)+".jpeg")
+        im.save(path+"/"+"GroundTruth.jpeg")
+        np.save(path+"/"+"GroundTruth_np",IMG)
         print('Bild gespeichert')
     return IMG
 ###--------------------------------------------------------
