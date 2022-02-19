@@ -7,3 +7,5 @@ Pillow
 os-sys
 DateTime
 pyserial
+SchunkMotionProtocol
+imageio
