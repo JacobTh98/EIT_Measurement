@@ -7,32 +7,41 @@ import os
 from datetime import datetime
 import serial
 from tqdm import tqdm
-
-
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
 ###--------------------------------------------------------
-def gen_env(mes,el,mod,Schnkstp):
+def gen_env(mes,el,mod,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben'):
     """
     Initialisierung des Ordners mit Informationen zur Messung
+    Es müssen alle Informationen übergeben werden.
     Input:  - Elektrodenanzahl [16/32]
             - Messmodus: ['a','b','c','d','e']
+            - Schrittweite Schunk
+            - Leitfähigkeit des Wassers
+            - Temperatur der Umgebung
+            - Wasserstand im Messzylinder
+            - Sonstige Informationen zur Messung
     """
     print('Ordner mit dem Namen:"',mes,'" wurde erstellt.')
     os.makedirs(mes)
     dr = mes+'/info.txt'
     f = open(dr,"w")
     #Schreiben der Grunddaten
-    f.write("EIT-Messung\n \n")
-    d = "Datum: \t"+str(datetime.today().strftime('%Y-%m-%d %H:%M'))+"\n"
-    m = "Messmodus: \t" + str(mod) + "\n"
+    f.write("EIT-Messung\n")
+    f.write("----------------------------------\n")
+    d = "Datum: \t \t \t"+str(datetime.today().strftime('%d.%m.%Y'))+"\n"
+    u = "Uhrzeit: \t \t"+str(datetime.today().strftime('%H:%M'))+" Uhr\n"
+    m = "Messmodus: \t \t" + str(mod) + "\n"
     e = "Elektrodenanzahl: \t" +str(el)+"\n"
-    s = "Schunk Step Intevall \t" + str(Schnkstp)+"[°/step]"+"\n"
-    f.write(d)
-    f.write(m)
-    f.write(e)
-    f.write(s)
+    s = "Schunk Step Intevall \t" + str(Schnkstp)+"\t[°/step]"+"\n"
+    l = "Leitfähigkeit \t \t" + str(leitw)+"\t[mS]\n"
+    w = "Wasserstand \t \t" + str(wasst)+"\t[mm]\n"
+    t = "Raumtemperatur \t \t"+ str(temp) + "\t[°C] \n \n"
+    i = "Sonstige Informationen:\n -" + str(sonst)
+    f.write(d);f.write(u);f.write(m);f.write(e)
+    f.write(s);f.write(l);f.write(t);f.write(w)
+    f.write(i)
     f.close()
 
 ###--------------------------------------------------------
