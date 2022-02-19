@@ -9,3 +9,4 @@ DateTime
 pyserial
 SchunkMotionProtocol
 imageio
+pyglet

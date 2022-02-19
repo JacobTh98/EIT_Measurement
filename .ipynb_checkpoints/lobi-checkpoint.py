@@ -7,6 +7,16 @@ import os
 from datetime import datetime
 import serial
 from tqdm import tqdm
+from PIL import Image
+import pyglet
+import reconstruction #not installable with pip. It´s a package from OpenEIT
+import imageio
+
+font = {'family': 'DejaVu Sans',
+        'color':  'black',
+        'weight': 'normal',
+        'size': 24,}
+
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
@@ -189,3 +199,176 @@ def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
         print('Bild gespeichert')
     return IMG
 ###--------------------------------------------------------
+
+#
+#
+#
+#
+#
+def view_txt(Dir):
+    """
+    Ausgeben der info.txt durch Übergabe des Speicherverzeichnisses
+    """
+    txt = Dir+'\info.txt'
+    file = open(txt)
+    print(file.read())
+    
+def view_GrTr(Dir):
+    """
+    Ausgabe der GroundTruth
+    """
+    Dir = Dir + '\GroundTruth_np.npy'
+    img = np.load(Dir)
+    plt.figure(figsize=(8,8))
+    plt.title("GroundTruth", fontdict=font)
+    plt.grid()
+    plt.imshow(img)
+    
+def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_of = 'm_m'):
+    """
+    n_el    ... Anzahl der Elektroden
+    path    ... Verzeichnis der Messdaten
+    step    ... Welche Iteration/Schritt wird ausgewertet
+    BackProj... default: True, alternativ JacReconstruction
+    diff_img... default: True = Es wird Ground Truth genommen, bei False zeros
+    kind_of ... default: Meanfee: m_m. Alternative ist 'raw'
+    """
+    load_path = path+'/'+str(step)+kind_of+'.npy'
+    IMGs = np.load(load_path)
+    vis = IMGs[10,:]
+    #vis = IMGs
+    load_path = path +'/Mean_empty_ground.npy'
+    GroundTruth = np.load(load_path)
+    #Funktionier: 
+    if BackProj:
+        g = reconstruction.BpReconstruction(n_el=n_el)
+    else:
+        g =reconstruction.JacReconstruction(n_el=n_el)
+    g.update_reference(GroundTruth)
+    baseline = g.eit_reconstruction(vis)
+    if diff_img:
+        difference_image = g.eit_reconstruction(GroundTruth)
+    else:
+        difference_image = g.eit_reconstruction(np.zeros(len(GroundTruth)))#192
+   
+    mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+    pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+    x   = pts[:, 0];y   = pts[:, 1]
+    #Print min and max impedance
+    a = np.argmin(difference_image)
+    b = np.argmax(difference_image)
+    print('Minimaler Wert: ',difference_image[a])
+    print('Maximaler Wert: ',difference_image[b])
+    print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
+    shading = 'gouraud'
+    shading = 'flat'
+    #SHOW # 
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
+    ax.plot(x[el_pos], y[el_pos], 'bo')
+    for i, e in enumerate(el_pos):
+        ax.text(x[e], y[e], str(i+1), size=12)
+    ax.axis('equal')
+    fig.colorbar(im)
+    plt.show()
+    
+def gif_reconstruction(path, steps, NameGif='Unnamed', BackProj = True, diff_img = True , kind_of = 'm_m'):
+    """
+    n_el     ... Anzahl der Elektroden __ wird selbst ausgelesen
+    Y        ... Steps __ könnte selbst ausgelesen werden
+    path     ... Verzeichnis der Messdaten
+    steps    ... Welche Iteration/Schritt wird ausgewertet
+    BackProj ... default: True, alternativ JacReconstruction
+    diff_img ... default: True = Es wird Ground Truth genommen, bei False zeros
+    kind_of  ... default: Meanfee: m_m. Alternative ist 'raw'
+    """
+    # Anzahl der Elektroden auslesen:
+    PATH = path+'/info.txt'
+    with open(PATH, "r") as tf:
+        lines = tf.read().split('\n')
+    lin = lines[5]; 
+    n_el = int(lin[int(len(lin))-2:])
+    print("Elektrodenanzahl aus info.txt:\t",n_el)
+    
+    ### GIF reconstruction
+    #Y = np.arange(0,361,steps)
+    Y = np.arange(0,126,steps)
+    filenames = []
+    toLoad = path+'/Mean_empty_ground.npy'
+    GroundTruth = np.load(toLoad)
+    if BackProj:
+        g = reconstruction.BpReconstruction(n_el=n_el)
+    else:
+        g = reconstruction.JacReconstruction(n_el=n_el)
+        
+    for file_num in Y:
+        ## Am Besten ist m_m zu Zero Reference
+        toLoad = path+'/'+str(file_num)+'m_m.npy'
+        IMGs = np.load(toLoad)
+        vis = IMGs[20,:] ###!!!!!!!!!!!!!!!!!!!!!!!!attention
+        
+        
+        g.update_reference(GroundTruth)
+        #g.update_reference(np.zeros(192))
+        baseline = g.eit_reconstruction(vis)
+        if diff_img:
+            difference_image = g.eit_reconstruction(GroundTruth)
+        else:
+            difference_image = g.eit_reconstruction(np.zeros(192))
+
+        #difference_image = g.eit_reconstruction(vis)
+        mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+        pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+        x   = pts[:, 0];y = pts[:, 1]
+        #Print min and max impedance
+        a = np.argmin(difference_image)
+        b = np.argmax(difference_image)
+        #print('Minimaler Wert: ',difference_image[a])
+        #print('Maximaler Wert: ',difference_image[b])
+        #print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
+        shading = 'gouraud'
+        shading = 'flat'
+        #SHOW # 
+        #fig, ax = plt.subplots(figsize=(10, 8))
+        plt.figure(figsize=(10,8))
+        im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
+        plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
+        plt.plot(x[el_pos], y[el_pos], 'bo')
+        for i, e in enumerate(el_pos):
+            plt.text(x[e], y[e], str(i+1), size=12)
+        title_plot = 'Position:'+str(file_num)
+        plt.title(title_plot)
+        plt.axis('equal')
+        plt.colorbar(im)
+        filename = str(file_num)+'.png'
+        plt.savefig(filename)
+        #plt.show()
+        plt.close()
+        filenames.append(filename)
+    # Build GIF
+    NameGif = NameGif + '.gif'
+    with imageio.get_writer(NameGif, mode='I') as writer:
+        for filename in filenames:
+            image = imageio.imread(filename)
+            writer.append_data(image)
+    for ele in filenames:
+        os.remove(ele)
+        # save frame
+        ### Anzeigen des Gifs
+        # pick an animated gif file you have in the working directory
+        
+def show_gif(NameGif):
+    NameGif = NameGif+'.gif'
+    animation = pyglet.resource.animation(NameGif)
+    sprite = pyglet.sprite.Sprite(animation)
+    # create a window and set it to the image size
+    win = pyglet.window.Window(width=sprite.width, height=sprite.height)
+    # set window background color = r, g, b, alpha
+    # each value goes from 0.0 to 1.0
+    green = 0, 1, 0, 1
+    pyglet.gl.glClearColor(*green)
+    @win.event
+    def on_draw():
+        win.clear()
+        sprite.draw()
+    pyglet.app.run()
