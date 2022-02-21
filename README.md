@@ -8,17 +8,10 @@ Es ist ein Teil vom Standartdatensatz `Dreieck_standart` gegeben.
 ### Cite:
 
 @Article{Thoenes2022,
-
-  author  = {Jacob Thönes},
-  
+  author  = {Jacob Thönes},  
   journal = {Masterprojekt},
-  
   title   = {{EIT} {M}easurement},
-  
   year    = {2022},
-  
   owner   = {jacob},
-  
   url     = {https://github.com/JacobTh98/EIT_Measurement},
-  
 }
