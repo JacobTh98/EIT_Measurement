@@ -1,4 +1,4 @@
-# [Wiki] Zum (https://github.com/JacobTh98/EIT_Measurement/wiki)
+#  [Anleitung](https://github.com/JacobTh98/EIT_Measurement/wiki)
 
 Es ist ein Teil vom Standartdatensatz `Dreieck_standart` gegeben.
 
