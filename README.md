@@ -4,7 +4,7 @@ Es ist ein Teil vom Standartdatensatz `Dreieck_standart` gegeben.
 
 [The simulation stuff](https://github.com/JacobTh98/EIT)
 
-
+***
 ### Cite:
 
 @Article{Thoenes2022,
