@@ -272,7 +272,7 @@ def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_o
     fig.colorbar(im)
     plt.show()
     
-def gif_reconstruction(path, steps, NameGif='Unnamed', BackProj = True, diff_img = True , kind_of = 'm_m'):
+def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, diff_img = True , kind_of = 'm_m'):
     """
     n_el     ... Anzahl der Elektroden __ wird selbst ausgelesen
     Y        ... Steps __ könnte selbst ausgelesen werden
@@ -282,7 +282,7 @@ def gif_reconstruction(path, steps, NameGif='Unnamed', BackProj = True, diff_img
     diff_img ... default: True = Es wird Ground Truth genommen, bei False zeros
     kind_of  ... default: Meanfee: m_m. Alternative ist 'raw'
     """
-    # Anzahl der Elektroden auslesen:
+    # Anzahl der Elektroden aus txt lesen:
     PATH = path+'/info.txt'
     with open(PATH, "r") as tf:
         lines = tf.read().split('\n')
@@ -290,7 +290,14 @@ def gif_reconstruction(path, steps, NameGif='Unnamed', BackProj = True, diff_img
     n_el = int(lin[int(len(lin))-2:])
     print("Elektrodenanzahl aus info.txt:\t",n_el)
     
+    #Anzahl der Steps aus txt lesen:
+    with open(PATH, "r") as tf:
+        lines = tf.read().split('\n')
+    lin = lines[6]; 
+    lin = lin.split('\t')
+    steps=int(lin[1])
     ### GIF reconstruction
+    print("Step-Intervalle aus info.txt:\t",steps)
     #Y = np.arange(0,361,steps)
     Y = np.arange(0,126,steps)
     filenames = []
@@ -301,50 +308,93 @@ def gif_reconstruction(path, steps, NameGif='Unnamed', BackProj = True, diff_img
     else:
         g = reconstruction.JacReconstruction(n_el=n_el)
         
-    for file_num in Y:
-        ## Am Besten ist m_m zu Zero Reference
-        toLoad = path+'/'+str(file_num)+'m_m.npy'
-        IMGs = np.load(toLoad)
-        vis = IMGs[20,:] ###!!!!!!!!!!!!!!!!!!!!!!!!attention
-        
-        
-        g.update_reference(GroundTruth)
-        #g.update_reference(np.zeros(192))
-        baseline = g.eit_reconstruction(vis)
-        if diff_img:
-            difference_image = g.eit_reconstruction(GroundTruth)
-        else:
-            difference_image = g.eit_reconstruction(np.zeros(192))
+    if not full:
+        for file_num in Y:
+            ## Am Besten ist m_m zu Zero Reference
+            toLoad = path+'/'+str(file_num)+'m_m.npy'
+            IMGs = np.load(toLoad)
+            vis = IMGs[IMGs.shape[0]//2,:] ###Take the rounded mid picture
+            g.update_reference(GroundTruth)
+            #g.update_reference(np.zeros(192))
+            baseline = g.eit_reconstruction(vis)
+            if diff_img:
+                difference_image = g.eit_reconstruction(GroundTruth)
+            else:
+                difference_image = g.eit_reconstruction(np.zeros(192))
 
         #difference_image = g.eit_reconstruction(vis)
-        mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
-        pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
-        x   = pts[:, 0];y = pts[:, 1]
-        #Print min and max impedance
-        a = np.argmin(difference_image)
-        b = np.argmax(difference_image)
-        #print('Minimaler Wert: ',difference_image[a])
-        #print('Maximaler Wert: ',difference_image[b])
-        #print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
-        shading = 'gouraud'
-        shading = 'flat'
-        #SHOW # 
-        #fig, ax = plt.subplots(figsize=(10, 8))
-        plt.figure(figsize=(10,8))
-        im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
-        plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
-        plt.plot(x[el_pos], y[el_pos], 'bo')
-        for i, e in enumerate(el_pos):
-            plt.text(x[e], y[e], str(i+1), size=12)
-        title_plot = 'Position:'+str(file_num)
-        plt.title(title_plot)
-        plt.axis('equal')
-        plt.colorbar(im)
-        filename = str(file_num)+'.png'
-        plt.savefig(filename)
-        #plt.show()
-        plt.close()
-        filenames.append(filename)
+            mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+            pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+            x   = pts[:, 0];y = pts[:, 1]
+            #Print min and max impedance
+            a = np.argmin(difference_image)
+            b = np.argmax(difference_image)
+            #print('Minimaler Wert: ',difference_image[a])
+            #print('Maximaler Wert: ',difference_image[b])
+            #print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
+            shading = 'gouraud'
+            shading = 'flat'
+            #SHOW # 
+            #fig, ax = plt.subplots(figsize=(10, 8))
+            plt.figure(figsize=(10,8))
+            im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
+            plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
+            plt.plot(x[el_pos], y[el_pos], 'bo')
+            for i, e in enumerate(el_pos):
+                plt.text(x[e], y[e], str(i+1), size=12)
+            title_plot = 'Position:'+str(file_num)
+            plt.title(title_plot)
+            plt.axis('equal')
+            plt.colorbar(im)
+            filename = str(file_num)+'.png'
+            plt.savefig(filename)
+            #plt.show()
+            plt.close()
+            filenames.append(filename)
+    else:
+        for file_num in Y:
+            ## Am Besten ist m_m zu Zero Reference
+            toLoad = path+'/'+str(file_num)+'m_m.npy'
+            IMGs = np.load(toLoad)
+            for eb in range(IMGs.shape[0]):
+                vis = IMGs[eb,:] ###!!!!!!!!!!!!!!!!!!!!!!!!attention
+                g.update_reference(GroundTruth)
+                #g.update_reference(np.zeros(192))
+                baseline = g.eit_reconstruction(vis)
+                if diff_img:
+                    difference_image = g.eit_reconstruction(GroundTruth)
+                else:
+                    difference_image = g.eit_reconstruction(np.zeros(192))
+
+            #difference_image = g.eit_reconstruction(vis)
+                mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+                pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+                x   = pts[:, 0];y = pts[:, 1]
+                #Print min and max impedance
+                a = np.argmin(difference_image)
+                b = np.argmax(difference_image)
+                #print('Minimaler Wert: ',difference_image[a])
+                #print('Maximaler Wert: ',difference_image[b])
+                #print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
+                shading = 'gouraud'
+                shading = 'flat'
+                #SHOW # 
+                #fig, ax = plt.subplots(figsize=(10, 8))
+                plt.figure(figsize=(10,8))
+                im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
+                plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
+                plt.plot(x[el_pos], y[el_pos], 'bo')
+                for i, e in enumerate(el_pos):
+                    plt.text(x[e], y[e], str(i+1), size=12)
+                title_plot = 'Position:'+str(file_num)
+                plt.title(title_plot)
+                plt.axis('equal')
+                plt.colorbar(im)
+                filename = str(file_num)+'_'+str(eb)+'.png'
+                plt.savefig(filename)
+                #plt.show()
+                plt.close()
+                filenames.append(filename)
     # Build GIF
     NameGif = NameGif + '.gif'
     with imageio.get_writer(NameGif, mode='I') as writer:
