@@ -21,12 +21,12 @@ font = {'family': 'DejaVu Sans',
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
 ###--------------------------------------------------------
-def gen_env(mes,el,mod,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben'):
+def gen_env(mes,el,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben'):
     """
     Initialisierung des Ordners mit Informationen zur Messung
     Es müssen alle Informationen übergeben werden.
     Input:  - Elektrodenanzahl [16/32]
-            - Messmodus: ['a','b','c','d','e']
+            - Messmodus: ['d','e'] angegeben durch 16 oder 32
             - Schrittweite Schunk
             - Leitfähigkeit des Wassers
             - Temperatur der Umgebung
@@ -34,6 +34,10 @@ def gen_env(mes,el,mod,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben
             - Sonstige Informationen zur Messung
     """
     print('Ordner mit dem Namen:"',mes,'" wurde erstellt.')
+    if el == 16:
+        mod = 'd'
+    if el == 32:
+        mod = 'e'
     os.makedirs(mes)
     dr = mes+'/info.txt'
     f = open(dr,"w")
@@ -62,6 +66,18 @@ def init(port="COM7"):
     serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
     print("Verbindung zu:" , port, "erfolgreich hergestellt.")
     return serialPort
+###--------------------------------------------------------
+def init_with_nel(port,Elek):
+    serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
+    print("Verbindung zu:" , port, "erfolgreich hergestellt.")
+    if Elek == 32:
+        serialPort.write('e')
+        print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
+    else:
+        serialPort.write('d')
+        print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
+    return serialPort
+
 ###--------------------------------------------------------
 def parse_line(line):
     """
@@ -136,11 +152,25 @@ def export_xlsx(A, path, mean, name ='undefined'):
     
     print('Messung',str(name),'erfolgreich exportiert')
 ###--------------------------------------------------------
+def CarCirc(R):
+    """
+    Umrechnung von kartesischen koordinaten P(x,y) in
+    Kreiskoordinatensystem r = sqrt(x^2+y^2). Dazu wird die
+    Gewichtung in [%] für das Groundtruth Bild hinzugezogen.
+    
+    Eingabe: P(x,y) mit R = [x1,y1,x2,y2,...xn,yn]. Es müssen immer die Tupel (x,y) gegeben sein!
+    return: Array mit prozentualer Positionierung
+    """
+    r = []
+    for i in range(0,len(R),2):
+        r.append(int(np.sqrt((R[i]**2+R[i+1]**2))*100))
+    return np.array(r)
+###--------------------------------------------------------
 def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
     """
     Input: objct ...'rectangle','circle','triangle'
-           r    ... Radius 0...2π [Rad] vom Mittelpunkt
-           α    ... Winkel [°] von positiver x-Achse (default: gegen den Uhrzeigersinn)
+           r    ... Radius 0...100 [%] vom Mittelpunkt
+           α    ... Winkel 0...2π [Rad] von positiver x-Achse (default: gegen den Uhrzeigersinn)
            dr   ... Verzeichnis der Messng
            clockdirection ... im oder gegen Uhrzeigersinn drehen
            
@@ -194,7 +224,7 @@ def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
         im = Image.fromarray(IMG)
         im = im.convert("L")
         #im.save(path+"/"+str(objct)+str(r_old)+str(α_old)+".jpeg")
-        im.save(path+"/"+"GroundTruth.jpeg")
+        im.save(path+"/"+"GroundTruth_α"+str(int(α))+".jpeg")
         np.save(path+"/"+"GroundTruth_np",IMG)
         print('Bild gespeichert')
     return IMG
