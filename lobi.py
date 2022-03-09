@@ -71,10 +71,12 @@ def init_with_nel(port,Elek):
     serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
     print("Verbindung zu:" , port, "erfolgreich hergestellt.")
     if Elek == 32:
-        serialPort.write('e')
+        e = 'e'
+        serialPort.write(e.encode())
         print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
     else:
-        serialPort.write('d')
+        d = 'd'
+        serialPort.write(d.encode())
         print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
     return serialPort
 
@@ -265,7 +267,7 @@ def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_o
     """
     load_path = path+'/'+str(step)+kind_of+'.npy'
     IMGs = np.load(load_path)
-    vis = IMGs[10,:]
+    vis = IMGs[1,:]
     #vis = IMGs
     load_path = path +'/Mean_empty_ground.npy'
     GroundTruth = np.load(load_path)
