@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import cv2 as cv
 import matplotlib.pyplot as plt
+
 from PIL import Image
 import os
 from datetime import datetime
@@ -9,31 +10,41 @@ import serial
 from tqdm import tqdm
 from PIL import Image
 import pyglet
-import reconstruction #not installable with pip. It´s a package from OpenEIT
+import pyeit.eit.greit as greit
+from pyeit.eit.fem import Forward
+import pyeit.mesh as mesh
+import reconstruction #Nicht über pip installierbar. Ist ein Package aus OpenEIT
 import imageio
 
+# Schriftformatierung der Plots
+fs = 25
 font = {'family': 'DejaVu Sans',
         'color':  'black',
         'weight': 'normal',
-        'size': 24,}
-
+        'size': fs,}
+plt.rcParams.update({'font.size': fs})
 """
 Um dieses Modul nach einer Veränderung zu verwenden, muss der Kernel neu gestartet werden.
 """
 ###--------------------------------------------------------
-def gen_env(mes,el,mod,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben'):
+def gen_env(mes,el,Schnkstp,leitw,temp,wasst,sonst='Keine weiteren Angaben'):
     """
     Initialisierung des Ordners mit Informationen zur Messung
-    Es müssen alle Informationen übergeben werden.
-    Input:  - Elektrodenanzahl [16/32]
-            - Messmodus: ['a','b','c','d','e']
-            - Schrittweite Schunk
-            - Leitfähigkeit des Wassers
-            - Temperatur der Umgebung
-            - Wasserstand im Messzylinder
-            - Sonstige Informationen zur Messung
+    Input:  - mes      ... Dateiordnername
+            - el       ... Elektrodenanzahl [16/32] -> Messmodus: ['d','e'] angegeben durch 16 oder 32 Elektroden
+            - Schnkstp ... Schrittweite Schunk
+            - leitw    ... Leitfähigkeit des Wassers
+            - temp     ... Temperatur der Umgebung
+            - wasst    ... Wasserstand im Messzylinder
+            - sonst    ... Sonstige Informationen zur Messung
+    Return:
+            - Keine Rückgabe
     """
     print('Ordner mit dem Namen:"',mes,'" wurde erstellt.')
+    if el == 16:
+        mod = 'd'
+    if el == 32:
+        mod = 'e'
     os.makedirs(mes)
     dr = mes+'/info.txt'
     f = open(dr,"w")
@@ -53,19 +64,46 @@ def gen_env(mes,el,mod,Schnkstp,leitw,temp, wasst, sonst='Keine weiteren Angaben
     f.write(s);f.write(l);f.write(t);f.write(w)
     f.write(i)
     f.close()
-
 ###--------------------------------------------------------
 def init(port="COM7"):
     """
-    default port = COM7
+    Initialisieren des seriellen Ports. Port muss bekannt sein.
+    Input:
+        port ... Serieller Port des SpectraEIT-Kits, default = COM7
+    Return:
+        serialPort ... Fertige serielle Verbindung
     """
     serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
     print("Verbindung zu:" , port, "erfolgreich hergestellt.")
     return serialPort
 ###--------------------------------------------------------
+def init_with_nel(port,Elek):
+    """
+    !!! Emfohlen wird die Funktion: init()
+    Serielle Übermittlung und Initialisierung des Messmodusses für das SpectraEIT-Kit.
+    Funktioniert leider nicht zuverlässig bei 32 Elektroden.
+    """
+    serialPort = serial.Serial(port=port, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
+    print("Verbindung zu:" , port, "erfolgreich hergestellt.")
+    if Elek == 32:
+        e = 'e'
+        serialPort.write(e.encode())
+        print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
+    else:
+        d = 'd'
+        serialPort.write(d.encode())
+        print("Messmodus: 'e'. Messung mit:",Elek,"Elektroden")
+    return serialPort
+
+###--------------------------------------------------------
 def parse_line(line):
     """
-    Aus pyEIT zu verarbeitung der bitdaten
+    Aus pyEIT zu verarbeitung der bitdaten.
+    Für normalen Skriptgebrauch nicht benötigt.
+    Input:
+        line  ... Datensatz
+    Return:
+        items ... Elemente aus lines
     """
     try:
         _, data = line.split(":", 1)
@@ -82,7 +120,7 @@ def parse_line(line):
             return None
     return np.array(items)
 ###--------------------------------------------------------
-def measure_data(N,serialPort, M = 192, mode = 'e'):
+def measure_data(N,serialPort,M=192,mode='d'):
     """
     Aufnahme von N Messwerten in einem definiterten Modus
     Input:  N    ... Anzahl der Messungen
@@ -92,7 +130,7 @@ def measure_data(N,serialPort, M = 192, mode = 'e'):
             M         ... länge der Messung (default: 192)
             Matrix: 0 ... Messwerte
                     1 ... Messwerte
-    Rückgabe:
+    Return:
             M+1 x N   ... Matrix, erste Spalte Messnummer.
     """
     n = np.arange(N) #Messnummerieung (0 ... N-1)
@@ -114,13 +152,20 @@ def measure_data(N,serialPort, M = 192, mode = 'e'):
     #Data handling
     return MxN
 ###--------------------------------------------------------
-def export_xlsx(A, path, mean, name ='undefined'):
+def export_xlsx(A,path,mean,name='undefined'):
     """
     Exportieren der messdaten als Excel-Tebelle
     !Achtung: Bei der Weiterverarbeitung!
     Außerdem wird ein mittelwertbild abgezogen
     - raw ... Rohdaten ohne Abzug des Mittelwertes
     - m_m ... Rohdaten inklusive Abzug des Mittelwertes
+    Input:
+        A    ... Matrix aus Daten die exportiert werden soll
+        path ... Verzeichnis in das exportiert werden soll
+        mean ... Mittelwertbild der Messung
+        name ... Name, unter dem die Messung gespeichert werden soll
+    Return:
+        - Keine Rückgabe
     """  
     ##Rohdaten
     df = pd.DataFrame(A)
@@ -133,23 +178,39 @@ def export_xlsx(A, path, mean, name ='undefined'):
     df.to_excel(excel_writer = str(path)+'/'+str(name)+'m_m'+'.xlsx')
     np.save(str(path)+'/'+str(name)+'m_m', A)
     
-    
     print('Messung',str(name),'erfolgreich exportiert')
 ###--------------------------------------------------------
-def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
+def CarCirc(R):
     """
-    Input: objct ...'rectangle','circle','triangle'
-           r    ... Radius 0...2π [Rad] vom Mittelpunkt
-           α    ... Winkel [°] von positiver x-Achse (default: gegen den Uhrzeigersinn)
-           dr   ... Verzeichnis der Messng
-           clockdirection ... im oder gegen Uhrzeigersinn drehen
-           
+    Umrechnung von kartesischen Koordinaten P(x,y) in
+    Kreiskoordinatensystem r = sqrt(x^2+y^2). Dazu wird die
+    Gewichtung in [%] für das Groundtruth Bild hinzugezogen.
+    
+    Input:  
+        R ... P(x,y) mit R = [x1,y1,x2,y2,...xn,yn]. Es müssen immer die Tupel (x,y) gegeben sein!
+    Return: 
+        r ... Array mit prozentualer Positionierung
+    """
+    r = []
+    for i in range(0,len(R),2):
+        r.append(int(np.sqrt((R[i]**2+R[i+1]**2))*100))
+    return np.array(r)
+###--------------------------------------------------------
+def ground_truth(objct,r,α,path,clockdirection=False,save_img=True):
+    """
+    Generiert das Groundtruth mit Koordinatensystem 2:
+    https://github.com/JacobTh98/EIT_Measurement/blob/master/images/koordinate_system_2.png
+    
+    Input: Es müssen für object, r und α Arrays übergeben werden!
+            objct ...'rectangle','circle','triangle'
+            r    ... Radius 0...100 [%] vom Mittelpunkt
+            α    ... Winkel 0...2π [Rad] von positiver x-Achse (default: gegen den Uhrzeigersinn)
+            path ... Verzeichnis der Messng
+            clockdirection ... im oder gegen Uhrzeigersinn drehen
            
            -> Für mehr Objekte Arrays für objct,r,α übergeben
     Return:
-           Bild des Gegenstandes, positioniert im Einheitskreis.
-           
-           Change rotation cercle!!!
+            IMG  ... Bild des Gegenstandes, positioniert im Einheitskreis.
     """
     IMG=np.zeros((1000,1000))
     cv.circle(IMG,(500,500),500,(255,255,0),1) #Rand
@@ -193,49 +254,60 @@ def ground_truth(objct , r , α , path ,clockdirection=False, save_img = True):
     if save_img:
         im = Image.fromarray(IMG)
         im = im.convert("L")
+        plt.rcParams.update({'font.size': fs})
         #im.save(path+"/"+str(objct)+str(r_old)+str(α_old)+".jpeg")
-        im.save(path+"/"+"GroundTruth.jpeg")
+        im.save(path+"/"+"GroundTruth_α"+str(int(α))+".jpeg")
         np.save(path+"/"+"GroundTruth_np",IMG)
         print('Bild gespeichert')
     return IMG
 ###--------------------------------------------------------
-
-#
-#
-#
-#
-#
 def view_txt(Dir):
     """
     Ausgeben der info.txt durch Übergabe des Speicherverzeichnisses
+        Input: 
+            Dir ... Verzeichnis der Messung, indem "info.txt" abgelegt ist.
+        Return:
+            - Keine Rückgabe
     """
-    txt = Dir+'\info.txt'
+    txt = Dir+'/info.txt'
     file = open(txt)
     print(file.read())
-    
+###--------------------------------------------------------
 def view_GrTr(Dir):
     """
     Ausgabe der GroundTruth
+        Input: 
+            Dir ... Verzeichnis der Messung, indem das Groundtruth-Bild abgelegt ist.
+        Return:
+            - Keine Rückgabe
     """
-    Dir = Dir + '\GroundTruth_np.npy'
+    Dir = Dir + '/GroundTruth_np.npy'
     img = np.load(Dir)
     plt.figure(figsize=(8,8))
-    plt.title("GroundTruth", fontdict=font)
+    plt.title(r"Groundtruth", fontdict=font)
     plt.grid()
     plt.imshow(img)
-    
-def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_of = 'm_m'):
+###--------------------------------------------------------
+def single_reconstruction(n_el,path,step,BackProj=True,diff_img=True,kind_of='m_m',save=False,DPI=300):
     """
-    n_el    ... Anzahl der Elektroden
-    path    ... Verzeichnis der Messdaten
-    step    ... Welche Iteration/Schritt wird ausgewertet
-    BackProj... default: True, alternativ JacReconstruction
-    diff_img... default: True = Es wird Ground Truth genommen, bei False zeros
-    kind_of ... default: Meanfee: m_m. Alternative ist 'raw'
+    Zeigt das rekonstruierte Bild aus einem ausgewählten Datensatz.
+    Für die Einzelrekonstruktion "single_img()" aufrufen.
+    Hier ist auch nur GNM und SBP möglich. Für GREIT ebenfalls "single_img()" aufrufen.
+    Input:
+        n_el    ... Anzahl der Elektroden
+        path    ... Verzeichnis der Messdaten
+        step    ... Welche Iteration/Schritt wird ausgewertet
+        BackProj... default: True, alternativ JacReconstruction
+        diff_img... default: True = Es wird Ground Truth genommen, bei False zeros
+        kind_of ... default: Meanfee: m_m. Alternative ist 'raw'
+        save    ... default: False, Speichern des Bildes
+        DPI     ... default: 300, Auflösung
+    Return:
+        - Keine Rückgabe
     """
     load_path = path+'/'+str(step)+kind_of+'.npy'
     IMGs = np.load(load_path)
-    vis = IMGs[10,:]
+    vis = IMGs[1,:]
     #vis = IMGs
     load_path = path +'/Mean_empty_ground.npy'
     GroundTruth = np.load(load_path)
@@ -250,7 +322,6 @@ def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_o
         difference_image = g.eit_reconstruction(GroundTruth)
     else:
         difference_image = g.eit_reconstruction(np.zeros(len(GroundTruth)))#192
-   
     mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
     pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
     x   = pts[:, 0];y   = pts[:, 1]
@@ -263,24 +334,110 @@ def single_reconstruction(n_el,path,step,BackProj = True, diff_img = True,kind_o
     shading = 'gouraud'
     shading = 'flat'
     #SHOW # 
+    plt.rcParams.update({'font.size': fs})
     fig, ax = plt.subplots(figsize=(10, 8))
-    im = ax.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
+    im = ax.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.viridis)
     ax.plot(x[el_pos], y[el_pos], 'bo')
     for i, e in enumerate(el_pos):
         ax.text(x[e], y[e], str(i+1), size=12)
     ax.axis('equal')
+    plt.title(r"Rekonstruierte $\Delta$ Leitfähigkeit", fontdict=font)
     fig.colorbar(im)
     plt.show()
-    
-def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, diff_img = True , kind_of = 'm_m'):
+    if save:
+        fig.savefig('single_rec'+'_'+str(n_el)+'.png', dpi=DPI)
+###--------------------------------------------------------
+def single_img(n_el,data,algorithm='GNM',save=False,DPI=300):
     """
-    n_el     ... Anzahl der Elektroden __ wird selbst ausgelesen
-    Y        ... Steps __ könnte selbst ausgelesen werden
-    path     ... Verzeichnis der Messdaten
-    steps    ... Welche Iteration/Schritt wird ausgewertet
-    BackProj ... default: True, alternativ JacReconstruction
-    diff_img ... default: True = Es wird Ground Truth genommen, bei False zeros
-    kind_of  ... default: Meanfee: m_m. Alternative ist 'raw'
+    Zeigt das rekonstruierte Bild eines Datenvektors
+    Input:
+        n_el......... Anzahl der Elektroden
+        data......... Datenvektor
+        algorithm.... 'GNM', 'BP', 'GREIT'. default = 'GNM'
+        save......... Speichern des Bilders. default = 'False'
+        DPI.......... Auflösung. default = 300
+    Return:
+        - Keine Rückgabe
+    Achtung: Wenn es nicht funktioniert "%matplotlib inline" in die Zeile über
+             den Funktionsaufruf einfügen!
+    """
+    GroundTruth = np.ones(len(data))
+    if algorithm == 'GREIT':
+        g = reconstruction.GreitReconstruction(n_el)
+        g.update_reference(GroundTruth)
+        baseline = g.eit_reconstruction(GroundTruth)
+        difference_image = g.eit_reconstruction(data)
+        mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+        pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+        x   = pts[:, 0];y   = pts[:, 1]
+        step=1
+        mesh_new = mesh.set_perm(mesh_obj, background=1)
+        fwd = Forward(mesh_obj, el_pos)
+        f0 = fwd.solve_eit(ex_mat, step=step, perm=mesh_obj["perm"])
+        f1 = fwd.solve_eit(ex_mat, step=step, perm=mesh_new["perm"])
+        eit = greit.GREIT(mesh_obj, el_pos, ex_mat=ex_mat, step=step, parser="std")
+        # parameter tuning is needed for better EIT images
+        eit.setup(p=0.5, lamb=0.01)#
+        ds = eit.solve(f1.v, f0.v, normalize=False)
+        x, y, ds_greit = eit.mask_value(ds, mask_value=np.NAN)
+        gr_max = np.max(np.abs(ds_greit))
+        #%matplotlib inline
+        plt.rcParams.update({'font.size': fs})
+        fig, ax = plt.subplots(figsize=(10, 8))
+        im = ax.imshow(
+            np.real(difference_image),
+            interpolation="nearest",
+            cmap=plt.cm.viridis#,
+        )
+        plt.title(r"Rekonstruierte $\Delta$ Leitfähigkeit", fontdict=font)
+        ax.set_aspect("equal")
+        fig.colorbar(im)
+        plt.show()
+    if algorithm == 'GNM' or algorithm == 'BP':
+        if algorithm == 'GNM':
+            g =reconstruction.JacReconstruction(n_el=n_el)
+        else:
+            g = reconstruction.BpReconstruction(n_el=n_el)
+        g.update_reference(GroundTruth)
+        baseline = g.eit_reconstruction(data)#####
+        difference_image = g.eit_reconstruction(GroundTruth)
+        mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
+        pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
+        x   = pts[:, 0];y   = pts[:, 1]
+        #Print min and max impedance
+        a = np.argmin(difference_image)
+        b = np.argmax(difference_image)
+        print('Minimaler Wert: ',difference_image[a])
+        print('Maximaler Wert: ',difference_image[b])
+        print('Δ Permittivität: ',np.abs(difference_image[a]-difference_image[b]))
+        shading = 'gouraud'
+        shading = 'flat'
+        #SHOW # 
+        #%matplotlib inline
+        plt.rcParams.update({'font.size': fs})
+        fig, ax = plt.subplots(figsize=(10, 8))
+        im = ax.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.viridis)
+        ax.plot(x[el_pos], y[el_pos], 'bo')
+        for i, e in enumerate(el_pos):
+            ax.text(x[e], y[e], str(i+1), size=12)
+        ax.axis('equal')
+        fig.colorbar(im)
+        plt.title(r"Rekonstruierte $\Delta$ Leitfähigkeit", fontdict=font)
+        plt.show()
+    if save:
+        fig.savefig(str(algorithm)+'_'+str(n_el)+'.png', dpi=DPI)
+###--------------------------------------------------------    
+def gif_reconstruction(path,full=False,NameGif='Unnamed',BackProj=True,diff_img=True,kind_of='m_m'):
+    """
+    Input:
+        path     ... Verzeichnis des Datensatzes
+        full     ... default: False, True = Alle Daten rekonstruieren, False = nur aus jedem Messschritt ein Bild.
+        NameGif  ... default: 'Unnamed', Name des gespeicherten Gifs
+        BackProj ... default: True, alternativ JacReconstruction/GNM
+        diff_img ... default: True = Es wird Ground Truth genommen, bei False Nullen
+        kind_of  ... default: m_m = mittelwertfrei. Alternative: 'raw' = Mittelwertbehaftet
+    Return:
+        - Keine Rückgabe, Speichern des Gifs
     """
     # Anzahl der Elektroden aus txt lesen:
     PATH = path+'/info.txt'
@@ -298,16 +455,16 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
     steps=int(lin[1])
     ### GIF reconstruction
     print("Step-Intervalle aus info.txt:\t",steps)
-    #Y = np.arange(0,361,steps)
-    Y = np.arange(0,126,steps)
+    Y = np.arange(0,351,steps)
+    #Y = np.arange(0,126,steps)
     filenames = []
     toLoad = path+'/Mean_empty_ground.npy'
     GroundTruth = np.load(toLoad)
+    GroundTruth = np.zeros(192)
     if BackProj:
         g = reconstruction.BpReconstruction(n_el=n_el)
     else:
-        g = reconstruction.JacReconstruction(n_el=n_el)
-        
+        g = reconstruction.JacReconstruction(n_el=n_el)  
     if not full:
         for file_num in Y:
             ## Am Besten ist m_m zu Zero Reference
@@ -321,7 +478,6 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
                 difference_image = g.eit_reconstruction(GroundTruth)
             else:
                 difference_image = g.eit_reconstruction(np.zeros(192))
-
         #difference_image = g.eit_reconstruction(vis)
             mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
             pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
@@ -336,9 +492,10 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
             shading = 'flat'
             #SHOW # 
             #fig, ax = plt.subplots(figsize=(10, 8))
+            plt.rcParams.update({'font.size': fs})
             plt.figure(figsize=(10,8))
-            im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
-            plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
+            im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.viridis)
+            plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.viridis)
             plt.plot(x[el_pos], y[el_pos], 'bo')
             for i, e in enumerate(el_pos):
                 plt.text(x[e], y[e], str(i+1), size=12)
@@ -358,14 +515,13 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
             IMGs = np.load(toLoad)
             for eb in range(IMGs.shape[0]):
                 vis = IMGs[eb,:] ###!!!!!!!!!!!!!!!!!!!!!!!!attention
-                g.update_reference(GroundTruth)
-                #g.update_reference(np.zeros(192))
+                #g.update_reference(GroundTruth)
+                g.update_reference(np.zeros(192))
                 baseline = g.eit_reconstruction(vis)
                 if diff_img:
                     difference_image = g.eit_reconstruction(GroundTruth)
                 else:
                     difference_image = g.eit_reconstruction(np.zeros(192))
-
             #difference_image = g.eit_reconstruction(vis)
                 mesh_obj = g.mesh_obj;el_pos = g.el_pos;ex_mat = g.ex_mat
                 pts = g.mesh_obj['node'];tri = g.mesh_obj['element']
@@ -379,10 +535,11 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
                 shading = 'gouraud'
                 shading = 'flat'
                 #SHOW # 
+                plt.rcParams.update({'font.size': fs})
                 #fig, ax = plt.subplots(figsize=(10, 8))
                 plt.figure(figsize=(10,8))
-                im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.gnuplot)
-                plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.gnuplot)
+                im = plt.tripcolor(x , y , tri , difference_image, shading=shading, cmap=plt.cm.viridis)
+                plt.tripcolor(x , y , tri , difference_image, shading=shading,  cmap=plt.cm.viridis)
                 plt.plot(x[el_pos], y[el_pos], 'bo')
                 for i, e in enumerate(el_pos):
                     plt.text(x[e], y[e], str(i+1), size=12)
@@ -406,8 +563,15 @@ def gif_reconstruction(path, full=False , NameGif='Unnamed', BackProj = True, di
         # save frame
         ### Anzeigen des Gifs
         # pick an animated gif file you have in the working directory
-        
+###--------------------------------------------------------        
 def show_gif(NameGif):
+    """
+    Ausgeben des Gifs
+    Input:
+        NameGif ... Name des Gifs.
+    Return:
+        - Keine Rückgabe
+    """
     NameGif = NameGif+'.gif'
     animation = pyglet.resource.animation(NameGif)
     sprite = pyglet.sprite.Sprite(animation)
@@ -422,3 +586,4 @@ def show_gif(NameGif):
         win.clear()
         sprite.draw()
     pyglet.app.run()
+###--------------------------------------------------------

@@ -1,0 +1,13 @@
+EIT-Messung
+----------------------------------
+Datum: 	 	 	02.03.2022
+Uhrzeit: 	 	11:14 Uhr
+Messmodus: 	 	e
+Elektrodenanzahl: 	16
+Schunk Step Intevall 	5	[°/step]
+Leitfähigkeit 	 	1	[mS]
+Raumtemperatur 	 	22	[°C] 
+ 
+Wasserstand 	 	40	[mm]
+Sonstige Informationen:
+ -Positionierung auf dem roten Kreis
